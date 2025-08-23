@@ -1,11 +1,13 @@
 import os
-import logging
+import re
+from typing import Any, Dict
+
 import httpx
 
 API_URL = "https://api.perplexity.ai/chat/completions"
 
-async def query(prompt: str, api_key: str | None = None) -> str:
-    """Send prompt to Perplexity API and return the response text."""
+async def query(prompt: str, api_key: str | None = None) -> Dict[str, Any]:
+    """Send prompt to the Perplexity API and return the full response payload."""
     api_key = api_key or os.getenv("PERPLEXITY_API_KEY")
     if not api_key:
         raise RuntimeError("PERPLEXITY_API_KEY is not set")
@@ -25,7 +27,21 @@ async def query(prompt: str, api_key: str | None = None) -> str:
         except httpx.HTTPStatusError as exc:
             # Surface API error details for easier debugging
             raise RuntimeError(f"Perplexity API error: {response.text}") from exc
-        data = response.json()
+        data: Dict[str, Any] = response.json()
         content = data["choices"][0]["message"]["content"].strip()
-        logging.info("Perplexity response: %s", content)
-        return content
+
+        # Map search result references to markdown links.
+        search_results = data.get("search_results", [])
+        references = {
+            str(idx + 1): f"[{res.get('title', 'source')}]({res.get('url', '')})"
+            for idx, res in enumerate(search_results)
+        }
+
+        def _replace(match: re.Match[str]) -> str:
+            key = match.group(1)
+            return references.get(key, match.group(0))
+
+        content = re.sub(r"\[(\d+)\]", _replace, content)
+        data["choices"][0]["message"]["content"] = content
+
+        return data
