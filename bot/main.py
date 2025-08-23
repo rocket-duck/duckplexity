@@ -3,7 +3,7 @@ import logging
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from dotenv import load_dotenv
-from .perplexity import query
+from bot.perplexity import query
 
 logging.basicConfig(level=logging.INFO)
 load_dotenv()
