@@ -53,10 +53,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         image_url = img_match.group(1)
         text = re.sub(r"!\[[^\]]*\]\(([^)]+)\)", "", reply, count=1).strip()
         logging.info("Sending image %s with caption: %s", image_url, text)
-        await update.message.reply_photo(photo=image_url, caption=text, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_photo(photo=image_url, caption=text, parse_mode=ParseMode.MARKDOWN_V2)
     else:
         logging.info("Sending text message: %s", reply)
-        await update.message.reply_text(reply, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(reply, parse_mode=ParseMode.MARKDOWN_V2)
 
 def main() -> None:
     if not TELEGRAM_BOT_TOKEN:
