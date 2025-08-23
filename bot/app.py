@@ -17,12 +17,30 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Привет! Отправь мне сообщение, и я спрошу Perplexity.")
 
+def _format_reply(text: str) -> str:
+    """Format Perplexity's markdown so that citation links appear as
+    ``[1], [2]`` with commas and spaces and without a trailing list of
+    sources."""
+    # Drop footnote-style reference list at the end of the message.
+    text = re.sub(r"\n\n\[\d+\]:.*", "", text, flags=re.DOTALL)
+
+    # Escape brackets so that Telegram renders them literally and insert
+    # a comma and space between consecutive citations.
+    def _escape(match: re.Match) -> str:
+        num, url = match.groups()
+        return rf"[\[{num}\]]({url})"
+
+    text = re.sub(r"\[(\d+)\]\(([^)]+)\)", _escape, text)
+    text = re.sub(r"\)\s*(?=\[\\)", "), ", text)
+    text = re.sub(r"(?<!\s)(?=\[\\)", " ", text)
+    return text.strip()
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_text = update.message.text
     logging.info("User message: %s", user_text)
     try:
         resp = await query(user_text)
-        reply = resp["choices"][0]["message"]["content"].strip()
+        reply = _format_reply(resp["choices"][0]["message"]["content"].strip())
     except Exception as exc:
         logging.exception("Perplexity query failed")
         await update.message.reply_text("Ошибка при обращении к Perplexity: %s" % exc)
