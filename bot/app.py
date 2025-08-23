@@ -28,6 +28,7 @@ def _format_reply(text: str) -> str:
     # a comma and space between consecutive citations.
     def _escape(match: re.Match) -> str:
         num, url = match.groups()
+        url = re.sub(r"([_()])", r"\\\1", url)
         return rf"[\[{num}\]]({url})"
 
     text = re.sub(r"\[(\d+)\]\(([^)]+)\)", _escape, text)
