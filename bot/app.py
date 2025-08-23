@@ -44,7 +44,8 @@ def _format_reply(text: str) -> str:
         return f"PLACEHOLDER{len(placeholders) - 1}"
 
     text = re.sub(r"\[\\\[\d+\\\]\]\([^)]+\)", _store, text)
-    text = re.sub(r"([_*\[\]()~`>#+=|{}.!])", r"\\\1", text)
+    text = re.sub(r"([_*\[\]()~`>#+=|{}.!\-])", r"\\\1", text)
+    text = re.sub(r"^\\- ", "- ", text, flags=re.MULTILINE)
 
     for idx, link in enumerate(placeholders):
         text = text.replace(f"PLACEHOLDER{idx}", link)
