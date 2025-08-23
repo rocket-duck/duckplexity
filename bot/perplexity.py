@@ -1,5 +1,4 @@
 import os
-import re
 import json
 import logging
 from typing import Any, Dict
@@ -35,22 +34,11 @@ async def query(prompt: str, api_key: str | None = None) -> Dict[str, Any]:
         logging.info("Perplexity API parsed response: %s", json.dumps(data, ensure_ascii=False))
         content = data["choices"][0]["message"]["content"].strip()
 
-        # Map numeric reference placeholders to Markdown links without titles and
-        # collect footnote-style reference list.
+        # Collect footnote-style reference list so callers can easily strip
+        # or hyperlink them later.
         search_results = data.get("search_results", [])
         urls = [res.get("url", "") for res in search_results]
 
-        # Replace occurrences like [1] in the content with a hyperlink [1](url)
-        link_map = {str(idx): f"[{idx}]({url})" for idx, url in enumerate(urls, start=1)}
-
-        def _replace(match: re.Match[str]) -> str:
-            key = match.group(1)
-            return link_map.get(key, match.group(0))
-
-        content = re.sub(r"\[(\d+)\]", _replace, content)
-        # Append the list of sources at the end separated by newlines using
-        # footnote-style `[n]: url` entries so that callers can easily strip
-        # them if desired.
         if urls:
             footnotes = [f"[{idx}]: {url}" for idx, url in enumerate(urls, start=1)]
             content = content + "\n\n" + "\n".join(footnotes)

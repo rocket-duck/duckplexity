@@ -19,30 +19,25 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("Привет! Отправь мне сообщение, и я спрошу Perplexity.")
 
 def _format_reply(text: str) -> str:
-    """Format Perplexity's markdown so that citation links appear as
-    ``[1], [2]`` with commas and spaces and without a trailing list of
-    sources."""
-    # Drop footnote-style reference list at the end of the message.
-    text = re.sub(r"\n\n\[\d+\]:.*", "", text, flags=re.DOTALL)
+    """Format Perplexity's markdown so citation numbers become hyperlinks
+    and the trailing footnote list is removed."""
+    # Extract footnote links: lines like `[1]: url`.
+    footnotes = dict(re.findall(r"\[(\d+)\]:\s*(\S+)", text))
+    # Drop footnote definitions from the message.
+    text = re.sub(r"\n\[(\d+)\]:\s*\S+", "", text)
 
-    placeholders: list[tuple[str, str]] = []
-
-    def _store_link(match: re.Match) -> str:
-        num, url = match.groups()
-        token = f"LINK{len(placeholders)}"
-        link_html = f'<a href="{html.escape(url, quote=True)}">[{num}]</a>'
-        placeholders.append((token, link_html))
-        return token
-
-    # Replace markdown links with placeholders so we can safely escape text
-    text = re.sub(r"\[(\d+)\]\(([^)]+)\)", _store_link, text)
-
-    # Escape all HTML special characters
+    # Escape all HTML special characters.
     text = html.escape(text)
 
-    # Restore hyperlinks
-    for token, link_html in placeholders:
-        text = text.replace(token, link_html)
+    # Replace `[n]` with hyperlink if URL is known.
+    def _replace(match: re.Match) -> str:
+        num = match.group(1)
+        url = footnotes.get(num)
+        if url:
+            return f'<a href="{html.escape(url, quote=True)}">[{num}]</a>'
+        return match.group(0)
+
+    text = re.sub(r"\[(\d+)\]", _replace, text)
 
     # Insert commas and spaces between consecutive citations
     text = re.sub(r"(</a>)\s*(?=<a)", r"\1, ", text)
