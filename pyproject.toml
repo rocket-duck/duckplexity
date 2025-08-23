@@ -26,4 +26,4 @@ packages = [
 ]
 
 [project.scripts]
-duckplexity = "bot.app:main"
+duckplexity = "bot.main:main"

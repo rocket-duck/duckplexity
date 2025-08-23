@@ -15,9 +15,8 @@ async def query(prompt: str, api_key: str | None = None) -> str:
     }
     payload = {
         # Use a generally available model to avoid 400 errors
-        "model": "sonar-small-chat",
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 512,
+        "model": "sonar",
+        "messages": [{"role": "user", "content": prompt}]
     }
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(API_URL, headers=headers, json=payload)
