@@ -34,6 +34,21 @@ def _format_reply(text: str) -> str:
     text = re.sub(r"\[(\d+)\]\(([^)]+)\)", _escape, text)
     text = re.sub(r"\)\s*(?=\[\\)", "), ", text)
     text = re.sub(r"(?<!\s)(?=\[\\)", " ", text)
+
+    # Escape Telegram MarkdownV2 special characters while preserving
+    # citation links formatted above.
+    placeholders: list[str] = []
+
+    def _store(match: re.Match) -> str:
+        placeholders.append(match.group(0))
+        return f"PLACEHOLDER{len(placeholders) - 1}"
+
+    text = re.sub(r"\[\\\[\d+\\\]\]\([^)]+\)", _store, text)
+    text = re.sub(r"([_*\[\]()~`>#+=|{}.!])", r"\\\1", text)
+
+    for idx, link in enumerate(placeholders):
+        text = text.replace(f"PLACEHOLDER{idx}", link)
+
     return text.strip()
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
