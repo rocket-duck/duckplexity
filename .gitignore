@@ -9,7 +9,6 @@ coverage.xml
 .pytest_cache/
 *.cast
 .idea/
-data/
 .env
 bot/.env
 access.json

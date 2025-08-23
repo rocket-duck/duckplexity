@@ -8,3 +8,4 @@ Telegram bot that forwards user messages to Perplexity AI.
    ```bash
    docker compose up --build
    ```
+3. User access state is stored in `data/access.json` and persisted on the host via a volume mount.
