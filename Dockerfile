@@ -9,4 +9,4 @@ RUN pip install poetry \
 
 COPY . /app
 
-CMD ["python", "-m", "bot.main"]
+CMD ["python", "-m", "main"]
