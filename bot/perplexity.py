@@ -30,21 +30,25 @@ async def query(prompt: str, api_key: str | None = None) -> Dict[str, Any]:
         data: Dict[str, Any] = response.json()
         content = data["choices"][0]["message"]["content"].strip()
 
-        # Map numeric reference placeholders to Markdown links without titles.
+        # Map numeric reference placeholders to Markdown links without titles and
+        # collect footnote-style reference list.
         search_results = data.get("search_results", [])
-        links = [f"[{idx}]({res.get('url', '')})" for idx, res in enumerate(search_results, start=1)]
+        urls = [res.get("url", "") for res in search_results]
 
         # Replace occurrences like [1] in the content with a hyperlink [1](url)
-        link_map = {str(idx): link for idx, link in enumerate(links, start=1)}
+        link_map = {str(idx): f"[{idx}]({url})" for idx, url in enumerate(urls, start=1)}
 
         def _replace(match: re.Match[str]) -> str:
             key = match.group(1)
             return link_map.get(key, match.group(0))
 
         content = re.sub(r"\[(\d+)\]", _replace, content)
-        # Append the list of sources at the end separated by newlines
-        if links:
-            content = content + "\n\n" + "\n".join(links)
+        # Append the list of sources at the end separated by newlines using
+        # footnote-style `[n]: url` entries so that callers can easily strip
+        # them if desired.
+        if urls:
+            footnotes = [f"[{idx}]: {url}" for idx, url in enumerate(urls, start=1)]
+            content = content + "\n\n" + "\n".join(footnotes)
         data["choices"][0]["message"]["content"] = content
 
         return data
