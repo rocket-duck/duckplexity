@@ -13,12 +13,17 @@ async def query(prompt: str, api_key: str | None = None) -> str:
         "Content-Type": "application/json",
     }
     payload = {
-        "model": "llama-3.1-sonar-small-128k-online",
+        # Use a generally available model to avoid 400 errors
+        "model": "sonar-small-chat",
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 512,
     }
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(API_URL, headers=headers, json=payload)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            # Surface API error details for easier debugging
+            raise RuntimeError(f"Perplexity API error: {response.text}") from exc
         data = response.json()
         return data["choices"][0]["message"]["content"].strip()
