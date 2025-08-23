@@ -71,11 +71,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         image_url = img_match.group(1)
         raw_content = re.sub(r"!\[[^\]]*\]\(([^)]+)\)", "", raw_content, count=1).strip()
         reply = _format_reply(raw_content)
-        logging.info("Sending image %s with caption: %s", image_url, reply)
+        logging.info("Formatted message: %s", reply)
+        logging.info("Sending image %s", image_url)
         await update.message.reply_photo(photo=image_url, caption=reply, parse_mode=ParseMode.HTML)
     else:
         reply = _format_reply(raw_content)
-        logging.info("Sending text message: %s", reply)
+        logging.info("Formatted message: %s", reply)
+        logging.info("Sending text message")
         await update.message.reply_text(reply, parse_mode=ParseMode.HTML)
 
 def main() -> None:

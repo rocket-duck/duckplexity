@@ -1,5 +1,7 @@
 import os
 import re
+import json
+import logging
 from typing import Any, Dict
 
 import httpx
@@ -20,6 +22,7 @@ async def query(prompt: str, api_key: str | None = None) -> Dict[str, Any]:
         "model": "sonar",
         "messages": [{"role": "user", "content": prompt}]
     }
+    logging.info("Perplexity API request: %s", json.dumps(payload, ensure_ascii=False))
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(API_URL, headers=headers, json=payload)
         try:
@@ -27,7 +30,9 @@ async def query(prompt: str, api_key: str | None = None) -> Dict[str, Any]:
         except httpx.HTTPStatusError as exc:
             # Surface API error details for easier debugging
             raise RuntimeError(f"Perplexity API error: {response.text}") from exc
+        logging.info("Perplexity API raw response: %s", response.text)
         data: Dict[str, Any] = response.json()
+        logging.info("Perplexity API parsed response: %s", json.dumps(data, ensure_ascii=False))
         content = data["choices"][0]["message"]["content"].strip()
 
         # Map numeric reference placeholders to Markdown links without titles and
