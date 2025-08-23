@@ -21,7 +21,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     user_text = update.message.text
     logging.info("User message: %s", user_text)
     try:
-        reply = await query(user_text)
+        resp = await query(user_text)
+        reply = resp["choices"][0]["message"]["content"].strip()
     except Exception as exc:
         logging.exception("Perplexity query failed")
         await update.message.reply_text("Ошибка при обращении к Perplexity: %s" % exc)
