@@ -1,4 +1,5 @@
 import os
+import logging
 import httpx
 
 API_URL = "https://api.perplexity.ai/chat/completions"
@@ -26,4 +27,6 @@ async def query(prompt: str, api_key: str | None = None) -> str:
             # Surface API error details for easier debugging
             raise RuntimeError(f"Perplexity API error: {response.text}") from exc
         data = response.json()
-        return data["choices"][0]["message"]["content"].strip()
+        content = data["choices"][0]["message"]["content"].strip()
+        logging.info("Perplexity response: %s", content)
+        return content
