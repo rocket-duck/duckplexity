@@ -1,10 +1,10 @@
 import os
 import logging
 import re
+import html
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
-from telegram.helpers import escape_markdown
 from dotenv import load_dotenv
 from bot.perplexity import query
 
@@ -25,33 +25,31 @@ def _format_reply(text: str) -> str:
     # Drop footnote-style reference list at the end of the message.
     text = re.sub(r"\n\n\[\d+\]:.*", "", text, flags=re.DOTALL)
 
-    # Escape brackets so that Telegram renders them literally and insert
-    # a comma and space between consecutive citations. URLs are escaped via
-    # ``escape_markdown`` so that Telegram's MarkdownV2 parser accepts them.
-    def _escape(match: re.Match) -> str:
+    placeholders: list[tuple[str, str]] = []
+
+    def _store_link(match: re.Match) -> str:
         num, url = match.groups()
-        url = escape_markdown(url, version=2)
-        return rf"[\[{num}\]]({url})"
+        token = f"LINK{len(placeholders)}"
+        link_html = f'<a href="{html.escape(url, quote=True)}">[{num}]</a>'
+        placeholders.append((token, link_html))
+        return token
 
-    text = re.sub(r"\[(\d+)\]\(([^)]+)\)", _escape, text)
-    text = re.sub(r"\)\s*(?=\[\\)", "), ", text)
-    text = re.sub(r"(?<!\s)(?=\[\\)", " ", text)
+    # Replace markdown links with placeholders so we can safely escape text
+    text = re.sub(r"\[(\d+)\]\(([^)]+)\)", _store_link, text)
 
-    # Escape Telegram MarkdownV2 special characters while preserving
-    # citation links formatted above.
-    placeholders: list[str] = []
+    # Escape all HTML special characters
+    text = html.escape(text)
 
-    def _store(match: re.Match) -> str:
-        placeholders.append(match.group(0))
-        # Use simple alphanumeric tokens to avoid later escaping issues.
-        return f"PH{len(placeholders) - 1}X"
+    # Restore hyperlinks
+    for token, link_html in placeholders:
+        text = text.replace(token, link_html)
 
-    text = re.sub(r"\[\\\[\d+\\\]\]\([^)]+\)", _store, text)
-    text = re.sub(r"([_*\[\]()~`>#+=|{}.!\-])", r"\\\1", text)
-    text = re.sub(r"^\\- ", "- ", text, flags=re.MULTILINE)
+    # Insert commas and spaces between consecutive citations
+    text = re.sub(r"(</a>)\s*(?=<a)", r"\1, ", text)
+    text = re.sub(r"(?<!\s)(?=<a)", " ", text)
 
-    for idx, link in enumerate(placeholders):
-        text = text.replace(f"PH{idx}X", link)
+    # Bold formatting: convert **text** to <b>text</b>
+    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
 
     return text.strip()
 
@@ -60,22 +58,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     logging.info("User message: %s", user_text)
     try:
         resp = await query(user_text)
-        reply = _format_reply(resp["choices"][0]["message"]["content"].strip())
+        raw_content = resp["choices"][0]["message"]["content"].strip()
     except Exception as exc:
         logging.exception("Perplexity query failed")
         await update.message.reply_text("Ошибка при обращении к Perplexity: %s" % exc)
         return
+
     # Extract first markdown image if present and send separately so that
     # Telegram displays it as a picture with a caption.
-    img_match = re.search(r"!\[[^\]]*\]\(([^)]+)\)", reply)
+    img_match = re.search(r"!\[[^\]]*\]\(([^)]+)\)", raw_content)
     if img_match:
         image_url = img_match.group(1)
-        text = re.sub(r"!\[[^\]]*\]\(([^)]+)\)", "", reply, count=1).strip()
-        logging.info("Sending image %s with caption: %s", image_url, text)
-        await update.message.reply_photo(photo=image_url, caption=text, parse_mode=ParseMode.MARKDOWN_V2)
+        raw_content = re.sub(r"!\[[^\]]*\]\(([^)]+)\)", "", raw_content, count=1).strip()
+        reply = _format_reply(raw_content)
+        logging.info("Sending image %s with caption: %s", image_url, reply)
+        await update.message.reply_photo(photo=image_url, caption=reply, parse_mode=ParseMode.HTML)
     else:
+        reply = _format_reply(raw_content)
         logging.info("Sending text message: %s", reply)
-        await update.message.reply_text(reply, parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text(reply, parse_mode=ParseMode.HTML)
 
 def main() -> None:
     if not TELEGRAM_BOT_TOKEN:
