@@ -1,12 +1,14 @@
 import os
 import logging
+import re
 from telegram import Update
+from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from dotenv import load_dotenv
 from bot.perplexity import query
 
 # Configure logging to suppress noisy httpx info logs
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.INFO)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 load_dotenv()
 
@@ -17,13 +19,24 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_text = update.message.text
+    logging.info("User message: %s", user_text)
     try:
         reply = await query(user_text)
     except Exception as exc:
         logging.exception("Perplexity query failed")
         await update.message.reply_text("Ошибка при обращении к Perplexity: %s" % exc)
         return
-    await update.message.reply_text(reply)
+    # Extract first markdown image if present and send separately so that
+    # Telegram displays it as a picture with a caption.
+    img_match = re.search(r"!\[[^\]]*\]\(([^)]+)\)", reply)
+    if img_match:
+        image_url = img_match.group(1)
+        text = re.sub(r"!\[[^\]]*\]\(([^)]+)\)", "", reply, count=1).strip()
+        logging.info("Sending image %s with caption: %s", image_url, text)
+        await update.message.reply_photo(photo=image_url, caption=text, parse_mode=ParseMode.MARKDOWN)
+    else:
+        logging.info("Sending text message: %s", reply)
+        await update.message.reply_text(reply, parse_mode=ParseMode.MARKDOWN)
 
 def main() -> None:
     if not TELEGRAM_BOT_TOKEN:
