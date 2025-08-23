@@ -12,3 +12,4 @@ coverage.xml
 data/
 .env
 bot/.env
+access.json
