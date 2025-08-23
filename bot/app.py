@@ -4,6 +4,7 @@ import re
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.helpers import escape_markdown
 from dotenv import load_dotenv
 from bot.perplexity import query
 
@@ -25,10 +26,11 @@ def _format_reply(text: str) -> str:
     text = re.sub(r"\n\n\[\d+\]:.*", "", text, flags=re.DOTALL)
 
     # Escape brackets so that Telegram renders them literally and insert
-    # a comma and space between consecutive citations.
+    # a comma and space between consecutive citations. URLs are escaped via
+    # ``escape_markdown`` so that Telegram's MarkdownV2 parser accepts them.
     def _escape(match: re.Match) -> str:
         num, url = match.groups()
-        url = re.sub(r"([_()])", r"\\\1", url)
+        url = escape_markdown(url, version=2)
         return rf"[\[{num}\]]({url})"
 
     text = re.sub(r"\[(\d+)\]\(([^)]+)\)", _escape, text)
@@ -41,14 +43,15 @@ def _format_reply(text: str) -> str:
 
     def _store(match: re.Match) -> str:
         placeholders.append(match.group(0))
-        return f"PLACEHOLDER{len(placeholders) - 1}"
+        # Use simple alphanumeric tokens to avoid later escaping issues.
+        return f"PH{len(placeholders) - 1}X"
 
     text = re.sub(r"\[\\\[\d+\\\]\]\([^)]+\)", _store, text)
     text = re.sub(r"([_*\[\]()~`>#+=|{}.!\-])", r"\\\1", text)
     text = re.sub(r"^\\- ", "- ", text, flags=re.MULTILINE)
 
     for idx, link in enumerate(placeholders):
-        text = text.replace(f"PLACEHOLDER{idx}", link)
+        text = text.replace(f"PH{idx}X", link)
 
     return text.strip()
 
