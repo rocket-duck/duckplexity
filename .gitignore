@@ -11,4 +11,4 @@ coverage.xml
 .idea/
 .env
 bot/.env
-access.json
+data/
