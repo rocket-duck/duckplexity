@@ -50,7 +50,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             ]
         ]
         username = user.username or user.full_name
-        text = f'Пользователь "{username}" хочет получить доступ к duckplexity'
+        text = f'Пользователь @{username} хочет получить доступ к duckplexity'
         await context.bot.send_message(
             chat_id=int(ADMIN_CHAT_ID),
             text=text,
@@ -124,7 +124,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if status == "pending" or status is None:
         await update.message.reply_text("У вас нет доступа")
     elif status == "denied":
-        await update.message.reply_text("вам отказано в доступе")
+        await update.message.reply_text("Вам отказано в доступе")
     elif status == "banned":
         await update.message.reply_text("Доступ отклонен")
 
