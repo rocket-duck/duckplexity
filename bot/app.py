@@ -2,8 +2,10 @@ import os
 import logging
 import re
 import html
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
+from telegram.error import TimedOut, NetworkError
 from telegram.ext import (
     ApplicationBuilder,
     CallbackQueryHandler,
@@ -87,6 +89,19 @@ def _format_reply(text: str) -> str:
 
     return text.strip()
 
+
+async def _send_with_retry(func, *args, **kwargs):
+    """Call a telegram API method and retry once on timeout or network error."""
+    for attempt in range(2):
+        try:
+            return await func(*args, **kwargs)
+        except (TimedOut, NetworkError) as exc:
+            if attempt == 0:
+                logging.warning("Telegram request failed, retrying: %s", exc)
+                await asyncio.sleep(1)
+            else:
+                logging.exception("Telegram request failed after retry: %s", exc)
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     user_id = str(user.id)
@@ -111,14 +126,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             reply = _format_reply(raw_content)
             logging.info("Formatted message: %s", reply)
             logging.info("Sending image %s", image_url)
-            await update.message.reply_photo(
-                photo=image_url, caption=reply, parse_mode=ParseMode.HTML
+            await _send_with_retry(
+                update.message.reply_photo,
+                photo=image_url,
+                caption=reply,
+                parse_mode=ParseMode.HTML,
             )
         else:
             reply = _format_reply(raw_content)
             logging.info("Formatted message: %s", reply)
             logging.info("Sending text message")
-            await update.message.reply_text(reply, parse_mode=ParseMode.HTML)
+            await _send_with_retry(
+                update.message.reply_text,
+                reply,
+                parse_mode=ParseMode.HTML,
+            )
         return
 
     if status == "pending" or status is None:
@@ -149,6 +171,11 @@ async def handle_decision(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     save_access(access)
     await query.edit_message_reply_markup(reply_markup=None)
 
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Log errors caused by updates."""
+    logging.error("Exception while handling update", exc_info=context.error)
+
 def main() -> None:
     if not TELEGRAM_BOT_TOKEN:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is not set")
@@ -156,4 +183,5 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(CallbackQueryHandler(handle_decision))
+    application.add_error_handler(error_handler)
     application.run_polling()
